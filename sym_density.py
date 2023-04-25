@@ -100,11 +100,21 @@ class Density:
         x, y = sp.symbols('x y')
         R = CoordSys3D('R')
         x_vec = x*R.i + y*R.j
-        dist, dist_fn = self.distance_metric()
-        inverse_bump, inverse_bump_fn = self.inverse_bump()
-        rho = sp.Mul(dist_fn,inverse_bump_fn)
-        #rho_fn = sp.lambdify(x,y, rho)
-        return rho
+        goal = self.goal[0]*R.i + self.goal[1]*R.j
+        dist = sp.sqrt((x_vec-goal).dot(x_vec-goal))
+        obs = self.obs_center[0]*R.i + self.obs_center[1]*R.j
+        obs_dist = sp.sqrt((x_vec-obs).dot(x_vec-obs))
+        shape = (np.subtract(obs_dist**2, self.r1**2)) / np.subtract(self.r2**2, self.r1**2)
+        
+        f = sp.Piecewise((0,shape<=0), (sp.exp(-1/shape),shape>0))
+        shape_shift = 1-shape
+        f_shift = sp.Piecewise((0,shape_shift<=0), (sp.exp(-1/shape_shift),shape_shift>0))
+        inverse_bump = f/(f+f_shift)
+
+        rho = 1/(dist**(2*self.alpha))*inverse_bump
+        rho_fn = sp.lambdify([x,y], rho)
+
+        return rho_fn
     
     def eval_density(self, x_domain=np.linspace(-10,10,100), y_domain=np.linspace(-10,10,100)):
         """
@@ -191,8 +201,8 @@ def main():
     print("Running main function")
     plots = False
     density = Density()
-    rho = density.density()
-    print(rho)
+    f_rho = density.density()
+    print(f_rho(1,2))
 
     if(plots ==True):
         # surface plot of f_density
