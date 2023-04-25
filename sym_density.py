@@ -114,7 +114,7 @@ class Density:
         rho = 1/(dist**(2*self.alpha))*inverse_bump
         rho_fn = sp.lambdify([x,y], rho)
 
-        return rho_fn
+        return rho, rho_fn
     
     def eval_density(self, x_domain=np.linspace(-10,10,100), y_domain=np.linspace(-10,10,100)):
         """
@@ -126,10 +126,10 @@ class Density:
         f_density       : the value of density function at each point in the domain
         """
         f_density = []
-        rho_fn = self.density()
+        rho, rho_fn = self.density()
         for x in x_domain:
             for y in y_domain:
-                if  self.density([x,y]) < 10:
+                if  rho_fn(x,y) < 10:
                     f_density.append(rho_fn(x,y))
                 else:
                     f_density.append(10)
@@ -199,9 +199,9 @@ def symlog(x):
 ###################### main function ####################################################
 def main():
     print("Running main function")
-    plots = False
+    plots = True
     density = Density()
-    f_rho = density.density()
+    rho , f_rho = density.density()
     print(f_rho(1,2))
 
     if(plots ==True):
