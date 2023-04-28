@@ -203,12 +203,12 @@ class Density:
         #forawrd euler
         grad_rho_fn_x, grad_rho_fn_y = self.grad_density()
         rad_from_goal = 0.1
-        saturation = 2
+        saturation = 1
         x = np.zeros((2,N))
         u = np.zeros((2,N))
         t = np.zeros((1,N))
-        x[0] = x0
-        x[1] = y0
+        x[0,0] = x0
+        x[1,0] = y0
         t[0,0] = current_t
         for i in range(1, N):
             u[0,i-1] = gain*grad_rho_fn_x(x[0,i-1],x[1,i-1])
@@ -217,21 +217,25 @@ class Density:
             # check if goal is reached 
             dist = np.linalg.norm(np.subtract(x[:,i-1],self.goal))
             if dist<rad_from_goal:
-                #print(dist,'reached goal')
-                u[0,i-1] = 0
-                u[1,i-1] = 0
-                break
+                print(dist,'reached goal')
+                K = 0.3162 # LQR gain for single integrator
+                u[0,i-1] = - K*x[0,i-1]
+                u[1,i-1] = - K*x[1,i-1]
 
             # saturate the control inputs
-            if np.max(u) >= saturation:
-               #print('saturation')
-                u = (u/np.max(u))*saturation
+            if np.max(u[:,i-1]) >= saturation:
+                #print('saturation')
+                u[:,i-1] = (u[:,i-1]/np.max(u[:,i-1]))*saturation
 
             # propagate the states
             x[0,i] = x[0,i-1] + dt*u[0,i-1]
             x[1,i] = x[1,i-1] + dt*u[1,i-1]
             t[0,i] = t[0,i-1] + dt
-        return t, x
+
+        # add value of u[N] = u[N-1] since we dont compute u[N]  
+        # need trajectory length N to be the same for both u and x
+        u[:,-1] = u[:,-2]
+        return t, x, u
 
 ########### utility functions ###########################################################
 def symlog(x):
@@ -241,29 +245,32 @@ def symlog(x):
 
 ###################### main function ####################################################
 def main():
-    plots = False
+    plots = True
     plot_traj = True
-    density = Density()
+    plot_control = True
+    plot_states = True
+    density = Density(r1=1, r2=2, obs_center=[10,10], goal=[10,0], alpha=0.2)
+    grad_rho_fn_x, grad_rho_fn_y = density.grad_density()
+    print(grad_rho_fn_x(2,4),grad_rho_fn_y(2,4))
 
-    N = 5000
+    N = 200
     dt = 0.01
-    x0 = -2
-    y0 = -3
-    gain = 80
+    x0 = 0
+    y0 = 0
+    gain = 25
     current_t = 0
-    t, x = density.forward_euler(current_t,x0,y0,N,dt,gain)
+    t, x, u = density.forward_euler(current_t,x0,y0,N,dt,gain)
 
     ############################ plots for verificaion ######################################################
+    fig = plt.figure()
     if(plots ==True):
         # surface plot of f_density
         X = np.linspace(-10,10,100)
         Y = np.linspace(-10,10,100)
         f_distance = density.eval_density(X,Y)
-
-        fig = plt.figure()
         X, Y = np.meshgrid(X, Y)
         # subplot 1
-        ax = fig.add_subplot(2,2,1, projection='3d')
+        ax = fig.add_subplot(3,2,1, projection='3d')
         Z = np.array(f_distance).reshape(100,100)
         surf1 = ax.plot_surface(X, Y, Z, cmap=plt.cm.coolwarm,
                             linewidth=0, antialiased=False)
@@ -273,13 +280,34 @@ def main():
         fig.colorbar(surf1, shrink=0.5, aspect=5)
 
     if(plot_traj ==True):
-        fig = plt.figure()
-        ax = fig.add_subplot(2,2,2)
+        ax = fig.add_subplot(3,2,2)
         ax.scatter(x[0,:-2],x[1,:-2])
         ax.set_xlabel('x')
         ax.set_ylabel('y')
 
-        plt.show()
+    if(plot_control ==True):
+        ax = fig.add_subplot(3,2,3)
+        ax.scatter(t[0,:],u[0,:])
+        ax.set_xlabel('time')
+        ax.set_ylabel('control 1')
+
+        ax = fig.add_subplot(3,2,4)
+        ax.scatter(t[0,:],u[1,:])
+        ax.set_xlabel('time')
+        ax.set_ylabel('control 2')
+
+    if(plot_states ==True):
+        ax = fig.add_subplot(3,2,5)
+        ax.scatter(t[0,:],x[0,:])
+        ax.set_xlabel('time')
+        ax.set_ylabel('state 1')
+
+        ax = fig.add_subplot(3,2,6)
+        ax.scatter(t[0,:],x[1,:])
+        ax.set_xlabel('time')
+        ax.set_ylabel('state 2')
+
+    plt.show()
     
 if __name__=="__main__":
     main()
